@@ -177,6 +177,7 @@ update_port() {
 # 80 x 45s sleep = 1 hour between checks
 check_port_loops=80
 check_port_loop_count=$check_port_loops
+check_port_retry="false"
 check_port() {
     if [[ "${ENABLE_PORT_CHECK,,}" != "true" ]]; then
         return 0
@@ -189,6 +190,7 @@ check_port() {
     result=$(curl -4 -s --fail --max-time 15 "https://portcheck.transmissionbt.com/$current_port" 2>/dev/null)
     rc=$?
     if [[ "$result" == "1" ]]; then
+        check_port_retry="false"
         #box_out "Port $current_port verified open"
         return 0
     elif [[ "$result" == "0" ]]; then
@@ -197,6 +199,12 @@ check_port() {
         log "Port check inconclusive: portcheck server unreachable (curl exit $rc)"
     else
         log "Port check inconclusive: unexpected response ('$result')"
+    fi
+    if [[ "$check_port_retry" == "true" ]]; then
+        check_port_retry="true"
+        check_port_loop_count=$check_port_loops
+    else
+        check_port_retry="false"
     fi
 }
 
