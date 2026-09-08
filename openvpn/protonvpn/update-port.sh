@@ -3,6 +3,7 @@
 set -euo pipefail
 
 . /etc/transmission/environment-variables.sh
+ENABLE_PORT_CHECK="${ENABLE_PORT_CHECK:-false}"
 TRANSMISSION_PASSWD_FILE=/config/transmission-credentials.txt
 transmission_username=$(head -1 "${TRANSMISSION_PASSWD_FILE}")
 transmission_passwd=$(tail -1 "${TRANSMISSION_PASSWD_FILE}")
@@ -170,6 +171,29 @@ update_port() {
     fi
 }
 
+# Uncomment to force enabling port checking:
+#ENABLE_PORT_CHECK="true"
+
+# 80 x 45s sleep = 1 hour between checks
+check_port_loops=80
+check_port_loop_count=$check_port_loops
+check_port() {
+    if [[ "${ENABLE_PORT_CHECK,,}" != "true" ]]; then
+        return 0
+    fi
+    [[ "$current_port" =~ ^[0-9]+$ ]] || return 0
+    check_port_loop_count=$((check_port_loop_count + 1))
+    (( check_port_loop_count >= check_port_loops )) || return 0
+    check_port_loop_count=0
+    local result
+    result=$(curl -4 -s --max-time 15 "https://portcheck.transmissionbt.com/$current_port" 2>/dev/null)
+    if [[ "$result" == "1" ]]; then
+        #log "Port $current_port verified open"
+        return 0
+    fi
+    box_out "Port $current_port tested closed (portcheck returned '${result:-no response}')"
+}
+
 log "Waiting for healthcheck to pass before updating ports..."
 while ! /etc/scripts/healthcheck.sh; do
     log "Not healthy yet. Retrying in 5 seconds..."
@@ -203,5 +227,6 @@ set +e
 while true; do
     update_port
     set_firewall
+    check_port
     sleep 45
 done
