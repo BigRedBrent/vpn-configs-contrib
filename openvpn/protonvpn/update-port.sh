@@ -185,13 +185,19 @@ check_port() {
     check_port_loop_count=$((check_port_loop_count + 1))
     (( check_port_loop_count >= check_port_loops )) || return 0
     check_port_loop_count=0
-    local result
-    result=$(curl -4 -s --max-time 15 "https://portcheck.transmissionbt.com/$current_port" 2>/dev/null)
+    local result rc
+    result=$(curl -4 -s --fail --max-time 15 "https://portcheck.transmissionbt.com/$current_port" 2>/dev/null)
+    rc=$?
     if [[ "$result" == "1" ]]; then
-        #log "Port $current_port verified open"
+        #box_out "Port $current_port verified open"
         return 0
+    elif [[ "$result" == "0" ]]; then
+        log "Port $current_port tested closed"
+    elif (( rc != 0 )); then
+        log "Port check inconclusive: portcheck server unreachable (curl exit $rc)"
+    else
+        log "Port check inconclusive: unexpected response ('$result')"
     fi
-    box_out "Port $current_port tested closed (portcheck returned '${result:-no response}')"
 }
 
 log "Waiting for healthcheck to pass before updating ports..."
