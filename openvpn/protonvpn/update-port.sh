@@ -200,7 +200,7 @@ check_port() {
     else
         log "Port check inconclusive: unexpected response ('$result')"
     fi
-    if [[ "$check_port_retry" == "true" ]]; then
+    if [[ "$check_port_retry" != "true" ]]; then
         check_port_retry="true"
         check_port_loop_count=$check_port_loops
     else
