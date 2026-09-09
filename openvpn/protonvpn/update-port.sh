@@ -13,6 +13,11 @@ new_port="unset"
 last_port="unset"
 current_port="unset"
 double_check="false"
+check_port_retry="false"
+check_port_last="unset"
+
+# Uncomment to force enabling port checking:
+#ENABLE_PORT_CHECK="true"
 
 log() { echo -e "update-port:\t$1"; }
 
@@ -171,11 +176,6 @@ update_port() {
     fi
 }
 
-# Uncomment to force enabling port checking:
-#ENABLE_PORT_CHECK="true"
-
-check_port_retry="false"
-check_port_last=""
 check_port() {
     if [[ "${ENABLE_PORT_CHECK,,}" != "true" ]]; then
         return 0
