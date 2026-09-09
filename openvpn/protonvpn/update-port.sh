@@ -174,18 +174,19 @@ update_port() {
 # Uncomment to force enabling port checking:
 #ENABLE_PORT_CHECK="true"
 
-# 80 x 45s sleep = 1 hour between checks
-check_port_loops=80
-check_port_loop_count=$check_port_loops
 check_port_retry="false"
+check_port_last=""
 check_port() {
     if [[ "${ENABLE_PORT_CHECK,,}" != "true" ]]; then
         return 0
     fi
     [[ "$current_port" =~ ^[0-9]+$ ]] || return 0
-    check_port_loop_count=$((check_port_loop_count + 1))
-    (( check_port_loop_count >= check_port_loops )) || return 0
-    check_port_loop_count=0
+    if [[ "$current_port" != "$check_port_last" ]]; then
+        check_port_retry="false"
+    elif [[ "$check_port_retry" != "true" ]]; then
+        return 0
+    fi
+    check_port_last="$current_port"
     local result rc
     result=$(curl -4 -s --fail --max-time 15 "https://portcheck.transmissionbt.com/$current_port" 2>/dev/null)
     rc=$?
@@ -202,7 +203,6 @@ check_port() {
     fi
     if [[ "$check_port_retry" != "true" ]]; then
         check_port_retry="true"
-        check_port_loop_count=$check_port_loops
     else
         check_port_retry="false"
     fi
