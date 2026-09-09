@@ -192,7 +192,7 @@ check_port() {
     rc=$?
     if [[ "$result" == "1" ]]; then
         check_port_retry="false"
-        #box_out "Port $current_port verified open"
+        box_out "Port $current_port verified open"
         return 0
     elif [[ "$result" == "0" ]]; then
         log "Port $current_port tested closed"
