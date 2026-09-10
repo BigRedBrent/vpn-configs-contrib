@@ -14,6 +14,7 @@ last_port="unset"
 current_port="unset"
 double_check="false"
 check_port_retry="false"
+check_port_first_try="true"
 check_port_last="unset"
 
 # Uncomment to force enabling port checking:
@@ -196,6 +197,17 @@ check_port() {
         return 0
     elif [[ "$result" == "0" ]]; then
         log "Port $current_port tested closed"
+        if [[ "$check_port_first_try" == "true" ]]; then
+            check_port_first_try="false"
+            local pmp_ip ext_ip
+            pmp_ip=$(timeout 5 natpmpc -g 10.2.0.1 2>/dev/null | sed -nr 's/.*[Pp]ublic IP address *: *([0-9.]+).*/\1/p' | head -1)
+            ext_ip=$(curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
+            log "natpmpc says public IP is: ${pmp_ip:-unknown}"
+            log "actual outbound IP is:     ${ext_ip:-unknown}"
+            if [[ -n "$pmp_ip" && -n "$ext_ip" && "$pmp_ip" != "$ext_ip" ]]; then
+                log "MISMATCH — port opened on $pmp_ip but traffic exits via $ext_ip"
+            fi
+        fi
     elif (( rc != 0 )); then
         log "Port check inconclusive: portcheck server unreachable (curl exit $rc)"
     else
