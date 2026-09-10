@@ -201,11 +201,14 @@ check_port() {
             check_port_first_fail="false"
             local pmp_ip ext_ip
             pmp_ip=$(timeout 5 natpmpc -g 10.2.0.1 2>/dev/null | sed -nr 's/.*[Pp]ublic IP address *: *([0-9.]+).*/\1/p' | head -1)
-            ext_ip=$(curl -4 -s --max-time 10 https://api.ipify.org 2>/dev/null)
-            log "natpmpc says public IP is: ${pmp_ip:-unknown}"
-            log "actual outbound IP is:     ${ext_ip:-unknown}"
-            if [[ -n "$pmp_ip" && -n "$ext_ip" && "$pmp_ip" != "$ext_ip" ]]; then
-                log "MISMATCH — port opened on $pmp_ip but traffic exits via $ext_ip"
+            ext_ip=$(curl -4 -s --fail --max-time 10 https://api.ipify.org 2>/dev/null | tr -d '[:space:]')
+            [[ "$ext_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || ext_ip=""
+            if [[ -z "$ext_ip" ]]; then
+                log "IP mismatch check skipped: could not determine outbound IP"
+            elif [[ "$pmp_ip" != "$ext_ip" ]]; then
+                log "natpmpc says public IP is: ${pmp_ip:-unknown}"
+                log "actual outbound IP is:     ${ext_ip:-unknown}"
+                log "IP MISMATCH — port opened on $pmp_ip but traffic exits via $ext_ip"
             fi
         fi
     elif (( rc != 0 )); then
