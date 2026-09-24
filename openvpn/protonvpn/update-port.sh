@@ -248,23 +248,12 @@ check_port() {
     fi
 }
 
-# The OpenVPN image has its own health check to wait on. Otherwise, wait for Transmission to answer.
-if [[ -x /etc/scripts/healthcheck.sh ]]; then
-    log "Waiting for healthcheck to pass before updating ports..."
-    while ! /etc/scripts/healthcheck.sh; do
-        log "Not healthy yet. Retrying in 5 seconds..."
-        sleep 5
-    done
-else
-    log "Waiting for Transmission to respond before updating ports..."
-    until curl -s -o /dev/null "http://127.0.0.1:${TRANSMISSION_RPC_PORT}/transmission/rpc"; do
-        log "Transmission not responding yet. Retrying in 5 seconds..."
-        sleep 5
-    done
-fi
-
-log "Starting port update in 5 seconds..."
-sleep 5
+transmission_ready() {
+    local port
+    port="$(session_port 2>/dev/null)"
+    [[ "$port" =~ ^[0-9]+$ ]] || return 1
+    remote --port "$port" 2>/dev/null | rpc_ok
+}
 
 # Install packages if they are not already installed
 install_package natpmpc || exit 1
@@ -282,6 +271,11 @@ if [[ -z "$tr_cmd" ]]; then
     log "Error: transmission-remote not found in PATH"
     exit 1
 fi
+
+log "Waiting for Transmission to correctly respond before updating ports..."
+until transmission_ready; do
+    sleep 5
+done
 
 box_out "ProtonVPN Port Forwarding"
 
