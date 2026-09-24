@@ -2,11 +2,29 @@
 
 set -euo pipefail
 
-. /etc/transmission/environment-variables.sh
+# The OpenVPN image saves its environment to this file; the WireGuard image doesn't need it
+if [[ -f /etc/transmission/environment-variables.sh ]]; then
+    . /etc/transmission/environment-variables.sh
+fi
+
 ENABLE_PORT_CHECK="${ENABLE_PORT_CHECK:-false}"
+ENABLE_UFW="${ENABLE_UFW:-false}"
+TRANSMISSION_RPC_PORT="${TRANSMISSION_RPC_PORT:-9091}"
+TRANSMISSION_HOME="${TRANSMISSION_HOME:-/config/transmission-home}"
+
+# Use the RPC login from the environment when set, otherwise the OpenVPN image's credentials file
 TRANSMISSION_PASSWD_FILE=/config/transmission-credentials.txt
-transmission_username=$(head -1 "${TRANSMISSION_PASSWD_FILE}")
-transmission_passwd=$(tail -1 "${TRANSMISSION_PASSWD_FILE}")
+if [[ -n "${TRANSMISSION_RPC_USERNAME:-}" ]]; then
+    transmission_username="$TRANSMISSION_RPC_USERNAME"
+    transmission_passwd="${TRANSMISSION_RPC_PASSWORD:-}"
+elif [[ -f "$TRANSMISSION_PASSWD_FILE" ]]; then
+    transmission_username=$(head -1 "$TRANSMISSION_PASSWD_FILE")
+    transmission_passwd=$(tail -1 "$TRANSMISSION_PASSWD_FILE")
+else
+    transmission_username=""
+    transmission_passwd=""
+fi
+
 transmission_settings_file=${TRANSMISSION_HOME}/settings.json
 transmission_auth=""
 new_port="unset"
@@ -19,6 +37,13 @@ check_port_last="unset"
 
 # Uncomment to force enabling port checking:
 #ENABLE_PORT_CHECK="true"
+
+# natpmpc finds the gateway from the default route on its own when there is one (OpenVPN).
+# WireGuard's default route has no gateway address, so use Proton's gateway directly.
+natpmp_gateway_args=()
+if ! ip route show default | grep -q ' via '; then
+    natpmp_gateway_args=(-g 10.2.0.1)
+fi
 
 log() { echo -e "update-port:\t$1"; }
 
@@ -45,7 +70,7 @@ install_package() {
 }
 
 open_port() {
-    timeout 5 natpmpc -a 1 0 udp 60 > /dev/null 2>&1 && timeout 5 natpmpc -a 1 0 tcp 60
+    timeout 5 natpmpc "${natpmp_gateway_args[@]}" -a 1 0 udp 60 > /dev/null 2>&1 && timeout 5 natpmpc "${natpmp_gateway_args[@]}" -a 1 0 tcp 60
 }
 
 remote() {
@@ -223,13 +248,22 @@ check_port() {
     fi
 }
 
-log "Waiting for healthcheck to pass before updating ports..."
-while ! /etc/scripts/healthcheck.sh; do
-    log "Not healthy yet. Retrying in 5 seconds..."
-    sleep 5
-    log "Retrying healthcheck..."
-done
-log "Healthcheck passed! Starting port update..."
+# The OpenVPN image has its own health check to wait on. Otherwise, wait for Transmission to answer.
+if [[ -x /etc/scripts/healthcheck.sh ]]; then
+    log "Waiting for healthcheck to pass before updating ports..."
+    while ! /etc/scripts/healthcheck.sh; do
+        log "Not healthy yet. Retrying in 5 seconds..."
+        sleep 5
+        log "Retrying healthcheck..."
+    done
+    log "Healthcheck passed! Starting port update..."
+else
+    log "Waiting for Transmission to respond before updating ports..."
+    until curl -s -o /dev/null "http://127.0.0.1:${TRANSMISSION_RPC_PORT}/transmission/rpc"; do
+        sleep 5
+    done
+    log "Transmission is responding! Starting port update..."
+fi
 
 # Install packages if they are not already installed
 install_package natpmpc || exit 1
@@ -242,7 +276,7 @@ if [[ "$(jq -r '.["rpc-authentication-required"] // .rpc_authentication_required
     transmission_auth="$transmission_username:$transmission_passwd"
 fi
 
-tr_cmd=$(command -v transmission-remote)
+tr_cmd=$(command -v transmission-remote || true)
 if [[ -z "$tr_cmd" ]]; then
     log "Error: transmission-remote not found in PATH"
     exit 1
