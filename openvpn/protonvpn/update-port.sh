@@ -272,7 +272,7 @@ if [[ -z "$tr_cmd" ]]; then
     exit 1
 fi
 
-log "Waiting for Transmission to correctly respond before updating ports..."
+log "Waiting for Transmission to correctly respond before updating forwarded port..."
 until transmission_ready; do
     sleep 5
 done
