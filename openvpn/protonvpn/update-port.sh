@@ -254,16 +254,17 @@ if [[ -x /etc/scripts/healthcheck.sh ]]; then
     while ! /etc/scripts/healthcheck.sh; do
         log "Not healthy yet. Retrying in 5 seconds..."
         sleep 5
-        log "Retrying healthcheck..."
     done
-    log "Healthcheck passed! Starting port update..."
 else
     log "Waiting for Transmission to respond before updating ports..."
     until curl -s -o /dev/null "http://127.0.0.1:${TRANSMISSION_RPC_PORT}/transmission/rpc"; do
+        log "Transmission not responding yet. Retrying in 5 seconds..."
         sleep 5
     done
-    log "Transmission is responding! Starting port update..."
 fi
+
+log "Starting port update in 5 seconds..."
+sleep 5
 
 # Install packages if they are not already installed
 install_package natpmpc || exit 1
