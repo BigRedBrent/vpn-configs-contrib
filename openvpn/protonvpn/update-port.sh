@@ -7,12 +7,10 @@ if [[ -f /etc/transmission/environment-variables.sh ]]; then
     . /etc/transmission/environment-variables.sh
 fi
 
-ENABLE_PORT_CHECK="${ENABLE_PORT_CHECK:-false}"
 ENABLE_UFW="${ENABLE_UFW:-false}"
 TRANSMISSION_RPC_PORT="${TRANSMISSION_RPC_PORT:-9091}"
 TRANSMISSION_HOME="${TRANSMISSION_HOME:-/config/transmission-home}"
-
-# Service used to look up the outbound IP when a forwarded port tests closed; it must reply with only the IP address
+ENABLE_PORT_CHECK="${ENABLE_PORT_CHECK:-false}"
 PORT_CHECK_PUBLIC_IP_URL="${PORT_CHECK_PUBLIC_IP_URL:-https://api.ipify.org}"
 
 # Use the RPC login from the environment when set, otherwise the OpenVPN image's credentials file
